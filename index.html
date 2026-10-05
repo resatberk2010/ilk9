@@ -69,6 +69,13 @@ label.f{display:flex;flex-direction:column;gap:3px;font-size:.78rem;color:var(--
 .btn:disabled{opacity:.6;cursor:wait}
 .btn.ghost{background:none;color:var(--muted);flex:0 0 auto}
 
+.chip:disabled{opacity:.35;cursor:not-allowed}
+.chip.out[aria-pressed="true"]{background:#B3141C;border-color:#E0222B}
+.eksik-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.eksik-list:empty{display:none}
+.eksik-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,150px);align-items:center;gap:10px}
+.eksik-row span{font-weight:500;min-width:0;overflow-wrap:anywhere}
+.note{margin:12px 0 0;font-size:.78rem;color:var(--muted)}
 .logo-pick{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px}
 .logo-thumb{width:52px;height:52px;border-radius:12px;background:#FFFFFF center/contain no-repeat;border:1px solid var(--line-2);flex:none;display:grid;place-items:center;color:#8B7FB0;font-size:.7rem}
 .logo-thumb:empty::after{content:"yok"}
@@ -119,6 +126,13 @@ dialog::backdrop{background:rgba(5,3,12,.92)}
       <div class="grid2 sub">
         <label class="f">Kaptan<select id="kaptan"></select></label>
       </div>
+    </section>
+
+    <section class="box">
+      <h2>Eksikler</h2>
+      <div class="chips" id="eksikChips" role="group" aria-label="Eksik oyuncular"></div>
+      <div class="eksik-list" id="eksikList"></div>
+      <p class="note">Maçta olmayanları seç; story'nin üstünde "Eksikler" olarak yazılır, yedeklerden çıkar. İlk 9'dakiler seçilemez.</p>
     </section>
 
     <section class="box">
@@ -240,7 +254,7 @@ const DEFAULT = {
   form: '3-3-2', picks: [1, 61, 69, 31, 18, 7, 17, 10, 8], kaptan: 0,
   rakip: '', tarih: '', saat: '', yer: '',
   ust: 'MAÇ GÜNÜ', baslik: 'İLK 9', alt: 'FORZA 142C',
-  tema: 'mor', logo: '', yedek: true, rehber: false,
+  tema: "mor", logo: "", eksik: [], yedek: true, rehber: false,
 };
 const KEY = '142c-story';
 let S = load();
@@ -248,7 +262,7 @@ function load() {
   try {
     const s = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (s && LAYOUTS[s.form] && Array.isArray(s.picks) && s.picks.length === 9 &&
-        new Set(s.picks).size === 9 && s.picks.every(n => n in byNo)) return { ...DEFAULT, ...s };
+        new Set(s.picks).size === 9 && s.picks.every(n => n in byNo)) return { ...DEFAULT, ...s, eksik: Array.isArray(s.eksik) ? s.eksik.filter(e => e && byNo[e.no]) : [] };
   } catch {}
   return structuredClone(DEFAULT);
 }
@@ -434,21 +448,45 @@ function drawHeader(T) {
   hairline(274, M, W - M, T.cardLine);
 }
 
-function drawTitle(T) {
-  x.textAlign = 'center';
+// Eksikler şeridi: başlığın üstünde kırmızı "EKSİKLER" etiketi + isimler (varsa nedeniyle)
+const eksikler = () => (S.eksik || []).filter(e => byNo[e.no] && !S.picks.includes(e.no));
+function drawEksik(T) {
+  const list = eksikler();
+  if (!list.length) return false;
+  const y = 330, h = 50;
+  const text = list.map(e => `${e.no}  ${nameOf(byNo[e.no])}${e.neden ? ` (${e.neden.toLocaleLowerCase('tr-TR')})` : ''}`).join('    ·    ');
+  font('700 22px "Saira Condensed", Kanit, sans-serif', 5);
+  const label = 'EKSİKLER', lw = x.measureText(label).width + 36;
+  const size = fit(text, W - 2 * M - lw - 24, 28, '500 #px Kanit, sans-serif', .5, 14);
+  const tw = x.measureText(text).width, total = lw + 22 + tw, sx = W / 2 - total / 2;
+  // etiket
+  x.save(); x.shadowColor = 'rgba(224,34,43,.45)'; x.shadowBlur = 18;
+  x.fillStyle = KIT.red; x.beginPath(); x.roundRect(sx, y - h / 2, lw, h, h / 2); x.fill(); x.restore();
+  font('700 22px "Saira Condensed", Kanit, sans-serif', 5);
+  x.textAlign = 'center'; x.fillStyle = '#FFFFFF'; x.fillText(label, sx + lw / 2 + 2, y + 8);
+  // isimler
+  font(`500 ${size}px Kanit, sans-serif`, .5);
+  x.textAlign = 'left'; x.fillStyle = T.text; x.fillText(text, sx + lw + 22, y + size * .36);
+  return true;
+}
+
+function drawTitle(T, eksik) {
+  x.textAlign = "center";
+  // eksikler şeridi varsa üst yazı aşağı iner, başlık biraz küçülür
+  const ky = eksik ? 400 : 340;
   const ust = upper(S.ust.trim());
   if (ust) {
     font('600 28px Kanit, sans-serif', 12);
     const tw = x.measureText(ust).width;
-    x.fillStyle = T.accent; x.fillText(ust, W / 2 + 6, 340);
+    x.fillStyle = T.accent; x.fillText(ust, W / 2 + 6, ky);
     [[-1, W / 2 - tw / 2 - 30], [1, W / 2 + tw / 2 + 30]].forEach(([d, sx]) => {
       const lg = x.createLinearGradient(sx, 0, sx + d * 90, 0);
       lg.addColorStop(0, T.accent); lg.addColorStop(1, 'rgba(0,0,0,0)');
-      x.fillStyle = lg; x.fillRect(Math.min(sx, sx + d * 90), 330, 90, 2);
+      x.fillStyle = lg; x.fillRect(Math.min(sx, sx + d * 90), ky - 10, 90, 2);
     });
   }
   const baslik = upper(S.baslik.trim() || 'İLK 9');
-  fit(baslik, W - 2 * M, 270, 'italic 900 #px Kanit, sans-serif', -6, 90);
+  fit(baslik, W - 2 * M, eksik ? 200 : 270, "italic 900 #px Kanit, sans-serif", -6, 90);
   // arkada altın kontur yankısı, önde parlak dolgu
   x.save(); x.lineWidth = 3; x.strokeStyle = goldGrad(400, 590); x.globalAlpha = .75;
   x.strokeText(baslik, W / 2 + 12, 590 + 10); x.restore();
@@ -646,7 +684,8 @@ function drawPlayers(T, slots) {
 
 function drawBench(T) {
   if (!S.yedek) return;
-  const bench = players.filter(p => !S.picks.includes(p.no));
+  const out = eksikler().map(e => e.no);
+  const bench = players.filter(p => !S.picks.includes(p.no) && !out.includes(p.no));
   if (!bench.length) return;
   x.textAlign = 'center';
   font('600 20px Kanit, sans-serif', 8); x.fillStyle = T.accent;
@@ -687,7 +726,7 @@ function draw(guides = S.rehber) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   x.clearRect(0, 0, W, H);
   x.textBaseline = 'alphabetic';
-  drawBackground(T); drawHeader(T); drawTitle(T); drawMatch(T);
+  drawBackground(T); drawHeader(T); drawTitle(T, drawEksik(T)); drawMatch(T);
   drawPitch(T); drawPlayers(T, slots); drawBench(T); drawFooter(T);
   // film greni
   x.save(); x.globalAlpha = T.light ? .35 : .6; x.fillStyle = grainPattern(); x.fillRect(0, 0, W, H); x.restore();
@@ -729,7 +768,7 @@ function fillInputs() {
   ['rakip', 'tarih', 'saat', 'yer', 'ust', 'baslik', 'alt'].forEach(k => { $('#' + k).value = S[k]; });
   $('#yedek').checked = S.yedek; $('#rehber').checked = S.rehber;
 }
-function renderAll() { renderForms(); renderThemes(); renderSlots(); fillInputs(); renderLogo(); redraw(); }
+function renderAll() { renderForms(); renderThemes(); renderSlots(); renderEksik(); fillInputs(); renderLogo(); redraw(); }
 
 // Diziliş değişince oyuncular mevkilerine göre korunur (defans defansta kalır…)
 function changeForm(form) {
@@ -744,7 +783,7 @@ function changeForm(form) {
 
 $('#forms').addEventListener('click', e => {
   const b = e.target.closest('[data-form]'); if (!b) return;
-  changeForm(b.dataset.form); save(); renderForms(); renderSlots(); redraw();
+  changeForm(b.dataset.form); save(); renderForms(); renderSlots(); renderEksik(); redraw();
 });
 $('#temas').addEventListener('click', e => {
   const b = e.target.closest('[data-tema]'); if (!b) return;
@@ -756,7 +795,7 @@ $('#slots').addEventListener('change', e => {
   const i = +sel.dataset.slot, no = +sel.value, j = S.picks.indexOf(no);
   if (j >= 0 && j !== i) S.picks[j] = S.picks[i];
   S.picks[i] = no;
-  save(); renderSlots(); redraw();
+  save(); renderSlots(); renderEksik(); redraw();
   if (j >= 0 && j !== i) flash(j);
 });
 $('#kaptan').addEventListener('change', e => { S.kaptan = +e.target.value; save(); redraw(); });
@@ -764,6 +803,32 @@ $('#kaptan').addEventListener('change', e => { S.kaptan = +e.target.value; save(
 ['rakip', 'tarih', 'saat', 'yer', 'ust', 'baslik', 'alt'].forEach(k =>
   $('#' + k).addEventListener('input', e => { S[k] = e.target.value; save(); redraw(); }));
 $('#reset').addEventListener('click', () => { S = structuredClone(DEFAULT); IMG.rakip = null; save(); renderAll(); });
+
+// Eksikler: ilk 9 dışındaki oyuncular seçilir, her birine isteğe bağlı neden
+const NEDENLER = ['', 'Sakat', 'Cezalı', 'Hasta', 'Gelemiyor'];
+function renderEksik() {
+  S.eksik = (S.eksik || []).filter(e => byNo[e.no] && !S.picks.includes(e.no));
+  const on = new Set(S.eksik.map(e => e.no));
+  $('#eksikChips').innerHTML = players.map(p => {
+    const starter = S.picks.includes(p.no);
+    return `<button type="button" class="chip out" data-eksik="${p.no}" aria-pressed="${on.has(p.no)}"${starter ? ' disabled title="İlk 9\'da"' : ''}>${p.no} · ${p.ad}</button>`;
+  }).join('');
+  $('#eksikList').innerHTML = S.eksik.map(e => `<label class="eksik-row"><span>${shortName(byNo[e.no])}</span>
+    <select data-neden="${e.no}" aria-label="${shortName(byNo[e.no])} neden eksik">${NEDENLER.map(n =>
+      `<option value="${n}"${n === (e.neden || '') ? ' selected' : ''}>${n || 'Neden yazma'}</option>`).join('')}</select></label>`).join('');
+}
+$('#eksikChips').addEventListener('click', e => {
+  const b = e.target.closest('[data-eksik]'); if (!b || b.disabled) return;
+  const no = +b.dataset.eksik;
+  S.eksik = S.eksik.some(o => o.no === no) ? S.eksik.filter(o => o.no !== no) : [...S.eksik, { no, neden: '' }];
+  save(); renderEksik(); redraw();
+});
+$('#eksikList').addEventListener('change', e => {
+  const s = e.target.closest('[data-neden]'); if (!s) return;
+  const it = S.eksik.find(o => o.no === +s.dataset.neden);
+  if (it) it.neden = NEDENLER.includes(s.value) ? s.value : '';
+  save(); redraw();
+});
 
 // Rakip logosu: seçilen resim 320 px'e küçültülüp taslağa kaydedilir
 function renderLogo() {
