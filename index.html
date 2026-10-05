@@ -88,11 +88,11 @@ dialog::backdrop{background:rgba(5,3,12,.92)}
 @media (max-width:820px){
   .app{grid-template-columns:minmax(0,1fr);gap:20px;padding-top:16px}
   .preview{order:-1;top:0;z-index:5;background:var(--bg);padding-block:8px;margin-inline:-16px;padding-inline:16px;border-bottom:1px solid var(--line)}
-  .stage{width:auto;height:46vh;margin:0 auto}
-  .preview .btns,.preview .hint{display:none}
-  .mobile-btns{display:flex!important}
+  .stage{width:auto;height:42vh;margin:0 auto}
+  .preview .hint{display:none}
+  .preview .btns{max-width:420px;width:100%;margin:0 auto;flex-wrap:nowrap}
+  .preview .btn{padding:10px 14px}
 }
-.mobile-btns{display:none!important}
 @media (max-width:420px){ .grid3{grid-template-columns:repeat(2,minmax(0,1fr))} }
 @media (prefers-reduced-motion:reduce){ .slot.flash select{animation:none} }
 </style>
@@ -153,10 +153,6 @@ dialog::backdrop{background:rgba(5,3,12,.92)}
       </div>
     </section>
 
-    <div class="btns mobile-btns">
-      <button type="button" class="btn primary" data-act="export">Resmi kaydet</button>
-      <button type="button" class="btn" data-act="full">Tam ekran</button>
-    </div>
     <button type="button" class="btn ghost" id="reset">Baştan başla</button>
   </main>
 
